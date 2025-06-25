@@ -265,37 +265,6 @@ async function generateVideo(audioBase64: string): Promise<string> {
   console.log('[D-ID] Key starts with:', apiKey.substring(0, 10));
   console.log('[D-ID] Key ends with:', apiKey.substring(apiKey.length - 10));
 
-  // Try different key formats
-  const keyVariants = [];
-
-  // Original key
-  keyVariants.push({ name: 'original', key: apiKey });
-
-  // Try base64 decoding
-  try {
-    const decoded = Buffer.from(apiKey, 'base64').toString('utf-8');
-    if (decoded && decoded !== apiKey) {
-      keyVariants.push({ name: 'base64-decoded', key: decoded });
-      console.log('[D-ID] Successfully decoded base64 key');
-      console.log('[D-ID] Decoded key length:', decoded.length);
-      console.log('[D-ID] Decoded key starts with:', decoded.substring(0, 10));
-    }
-  } catch (error) {
-    console.log('[D-ID] Base64 decoding failed');
-  }
-
-  // Try URL-safe base64 decoding
-  try {
-    const urlSafeKey = apiKey.replace(/-/g, '+').replace(/_/g, '/');
-    const decoded = Buffer.from(urlSafeKey, 'base64').toString('utf-8');
-    if (decoded && decoded !== apiKey) {
-      keyVariants.push({ name: 'urlsafe-base64-decoded', key: decoded });
-      console.log('[D-ID] Successfully decoded URL-safe base64 key');
-    }
-  } catch (error) {
-    console.log('[D-ID] URL-safe base64 decoding failed');
-  }
-
   // Use a reliable image URL
   const lincolnImageUrl = 'https://i.imgur.com/8tBzQJq.jpg';
 
@@ -306,7 +275,7 @@ async function generateVideo(audioBase64: string): Promise<string> {
     audioBase64.slice(0, 100)
   );
 
-  // Prepare payload according to D-ID docs
+  // Prepare payload according to D-ID docs - minimal required fields
   const payload = {
     script: {
       type: 'audio',
@@ -314,18 +283,10 @@ async function generateVideo(audioBase64: string): Promise<string> {
       subtitles: false,
     },
     source_url: lincolnImageUrl,
-    // Add required fields from D-ID docs
-    presenter_id: null, // Use source_url instead
-    driver_id: null, // Not needed for audio
-    config: {
-      fluent: false, // Disable advanced features for free tier
-      pad_audio: 0.0,
-      stitch: true,
-    },
   };
 
   console.log(
-    '[D-ID] Payload (updated):',
+    '[D-ID] Payload (minimal per docs):',
     JSON.stringify(
       {
         script: {
@@ -334,30 +295,18 @@ async function generateVideo(audioBase64: string): Promise<string> {
           subtitles: false,
         },
         source_url: lincolnImageUrl,
-        config: {
-          fluent: false,
-          pad_audio: 0.0,
-          stitch: true,
-        },
       },
       null,
       2
     )
   );
 
-  // Try different authentication methods with all key variants
-  const authMethods = [];
-
-  for (const keyVariant of keyVariants) {
-    // Only try Bearer and X-API-Key for now (skip Basic to avoid encoding issues)
-    authMethods.push(
-      {
-        name: `Bearer (${keyVariant.name})`,
-        header: `Bearer ${keyVariant.key}`,
-      },
-      { name: `X-API-Key (${keyVariant.name})`, header: keyVariant.key }
-    );
-  }
+  // Try different authentication methods per D-ID docs
+  const authMethods = [
+    { name: 'Bearer Token', header: `Bearer ${apiKey}` },
+    { name: 'X-API-Key', header: apiKey },
+    { name: 'Authorization Only', header: apiKey },
+  ];
 
   let lastError;
 
@@ -371,6 +320,7 @@ async function generateVideo(audioBase64: string): Promise<string> {
           Authorization: authMethod.header,
           'Content-Type': 'application/json',
           Accept: 'application/json',
+          'User-Agent': 'Abe-Answers/1.0',
         },
         body: JSON.stringify(payload),
       });
@@ -397,6 +347,7 @@ async function generateVideo(audioBase64: string): Promise<string> {
               headers: {
                 Authorization: authMethod.header, // Use the same auth method
                 Accept: 'application/json',
+                'User-Agent': 'Abe-Answers/1.0',
               },
             }
           );
