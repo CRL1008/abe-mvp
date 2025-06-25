@@ -22,10 +22,5 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
-  ],
-  "functions": {
-    "api/ask.ts": {
-      "maxDuration": 60
-    }
-  }
+  ]
 }
