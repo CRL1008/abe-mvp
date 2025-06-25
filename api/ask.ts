@@ -275,21 +275,25 @@ async function generateVideo(audioBase64: string): Promise<string> {
       type: 'audio',
       audio: `data:audio/mpeg;base64,${audioBase64}`,
       subtitles: false,
-      provider: {
-        type: 'microsoft',
-        voice_id: 'en-US-JennyNeural',
-      },
-    },
-    config: {
-      fluent: true,
-      pad_audio: 0.0,
-      stitch: true,
     },
     source_url: lincolnImageUrl,
   };
 
-  // Log payload
-  console.log('[D-ID] Payload:', JSON.stringify(payload, null, 2));
+  console.log(
+    '[D-ID] Payload (simplified):',
+    JSON.stringify(
+      {
+        script: {
+          type: 'audio',
+          audio: `data:audio/mpeg;base64,${audioBase64.slice(0, 100)}...`,
+          subtitles: false,
+        },
+        source_url: lincolnImageUrl,
+      },
+      null,
+      2
+    )
+  );
 
   // Create the video
   const createResponse = await fetch('https://api.d-id.com/talks', {
