@@ -259,8 +259,8 @@ async function generateVideo(audioBase64: string): Promise<string> {
     throw new Error('D-ID API key not configured');
   }
 
-  const lincolnImageUrl =
-    'https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Abraham_Lincoln_1863_Portrait_%283x4_cropped%29.jpg/1280px-Abraham_Lincoln_1863_Portrait_%283x4_cropped%29.jpg';
+  // Try a simpler, more reliable image URL
+  const lincolnImageUrl = 'https://i.imgur.com/8tBzQJq.jpg'; // Simple Lincoln portrait
 
   // Log audio info
   console.log('[D-ID] Audio base64 length:', audioBase64.length);
@@ -311,7 +311,18 @@ async function generateVideo(audioBase64: string): Promise<string> {
   console.log('[D-ID] Response:', createText);
 
   if (!createResponse.ok) {
-    throw new Error(`D-ID create API error: ${createText}`);
+    // Try to provide more helpful error information
+    let errorMessage = `D-ID create API error: ${createText}`;
+
+    if (createResponse.status === 500) {
+      errorMessage += '\n\nPossible causes:\n';
+      errorMessage += '- Free tier limitations (try upgrading)\n';
+      errorMessage += '- Image URL not accessible\n';
+      errorMessage += '- Audio format not supported\n';
+      errorMessage += '- Account needs verification\n';
+    }
+
+    throw new Error(errorMessage);
   }
 
   const createData: DIDResponse = JSON.parse(createText);
