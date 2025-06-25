@@ -119,3 +119,11 @@ abe-answers/
 ├── vercel.json           # Vercel deployment config
 └── README.md             # This file
 ```
+
+## Troubleshooting
+
+If you encounter deployment issues:
+
+1. Check that all environment variables are set in Vercel
+2. Ensure the repository is properly connected in Vercel settings
+3. Verify the build configuration in vercel.json
