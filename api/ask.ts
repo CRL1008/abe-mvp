@@ -265,21 +265,35 @@ async function generateVideo(audioBase64: string): Promise<string> {
   console.log('[D-ID] Key starts with:', apiKey.substring(0, 10));
   console.log('[D-ID] Key ends with:', apiKey.substring(apiKey.length - 10));
 
-  // Try to decode if it's base64
-  let decodedKey = apiKey;
+  // Try different key formats
+  const keyVariants = [];
+
+  // Original key
+  keyVariants.push({ name: 'original', key: apiKey });
+
+  // Try base64 decoding
   try {
     const decoded = Buffer.from(apiKey, 'base64').toString('utf-8');
     if (decoded && decoded !== apiKey) {
-      decodedKey = decoded;
+      keyVariants.push({ name: 'base64-decoded', key: decoded });
       console.log('[D-ID] Successfully decoded base64 key');
-      console.log('[D-ID] Decoded key length:', decodedKey.length);
-      console.log(
-        '[D-ID] Decoded key starts with:',
-        decodedKey.substring(0, 10)
-      );
+      console.log('[D-ID] Decoded key length:', decoded.length);
+      console.log('[D-ID] Decoded key starts with:', decoded.substring(0, 10));
     }
   } catch (error) {
-    console.log('[D-ID] Key is not base64 encoded, using as-is');
+    console.log('[D-ID] Base64 decoding failed');
+  }
+
+  // Try URL-safe base64 decoding
+  try {
+    const urlSafeKey = apiKey.replace(/-/g, '+').replace(/_/g, '/');
+    const decoded = Buffer.from(urlSafeKey, 'base64').toString('utf-8');
+    if (decoded && decoded !== apiKey) {
+      keyVariants.push({ name: 'urlsafe-base64-decoded', key: decoded });
+      console.log('[D-ID] Successfully decoded URL-safe base64 key');
+    }
+  } catch (error) {
+    console.log('[D-ID] URL-safe base64 decoding failed');
   }
 
   // Use a reliable image URL
@@ -331,21 +345,19 @@ async function generateVideo(audioBase64: string): Promise<string> {
     )
   );
 
-  // Try different authentication methods with both original and decoded keys
-  const authMethods = [
-    { name: 'Bearer (original)', header: `Bearer ${apiKey}` },
-    { name: 'Bearer (decoded)', header: `Bearer ${decodedKey}` },
-    {
-      name: 'Basic (original)',
-      header: `Basic ${Buffer.from(apiKey + ':').toString('base64')}`,
-    },
-    {
-      name: 'Basic (decoded)',
-      header: `Basic ${Buffer.from(decodedKey + ':').toString('base64')}`,
-    },
-    { name: 'X-API-Key (original)', header: apiKey },
-    { name: 'X-API-Key (decoded)', header: decodedKey },
-  ];
+  // Try different authentication methods with all key variants
+  const authMethods = [];
+
+  for (const keyVariant of keyVariants) {
+    // Only try Bearer and X-API-Key for now (skip Basic to avoid encoding issues)
+    authMethods.push(
+      {
+        name: `Bearer (${keyVariant.name})`,
+        header: `Bearer ${keyVariant.key}`,
+      },
+      { name: `X-API-Key (${keyVariant.name})`, header: keyVariant.key }
+    );
+  }
 
   let lastError;
 
