@@ -1,3 +1,4 @@
+// src/App.tsx
 import { useState, useEffect, useRef } from 'react';
 
 interface ApiResponse {
