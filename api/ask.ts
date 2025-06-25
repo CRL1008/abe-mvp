@@ -265,6 +265,23 @@ async function generateVideo(audioBase64: string): Promise<string> {
   console.log('[D-ID] Key starts with:', apiKey.substring(0, 10));
   console.log('[D-ID] Key ends with:', apiKey.substring(apiKey.length - 10));
 
+  // Try to decode if it's base64
+  let decodedKey = apiKey;
+  try {
+    const decoded = Buffer.from(apiKey, 'base64').toString('utf-8');
+    if (decoded && decoded !== apiKey) {
+      decodedKey = decoded;
+      console.log('[D-ID] Successfully decoded base64 key');
+      console.log('[D-ID] Decoded key length:', decodedKey.length);
+      console.log(
+        '[D-ID] Decoded key starts with:',
+        decodedKey.substring(0, 10)
+      );
+    }
+  } catch (error) {
+    console.log('[D-ID] Key is not base64 encoded, using as-is');
+  }
+
   // Use a reliable image URL
   const lincolnImageUrl = 'https://i.imgur.com/8tBzQJq.jpg';
 
@@ -314,14 +331,20 @@ async function generateVideo(audioBase64: string): Promise<string> {
     )
   );
 
-  // Try different authentication methods
+  // Try different authentication methods with both original and decoded keys
   const authMethods = [
-    { name: 'Bearer', header: `Bearer ${apiKey}` },
+    { name: 'Bearer (original)', header: `Bearer ${apiKey}` },
+    { name: 'Bearer (decoded)', header: `Bearer ${decodedKey}` },
     {
-      name: 'Basic',
+      name: 'Basic (original)',
       header: `Basic ${Buffer.from(apiKey + ':').toString('base64')}`,
     },
-    { name: 'X-API-Key', header: apiKey },
+    {
+      name: 'Basic (decoded)',
+      header: `Basic ${Buffer.from(decodedKey + ':').toString('base64')}`,
+    },
+    { name: 'X-API-Key (original)', header: apiKey },
+    { name: 'X-API-Key (decoded)', header: decodedKey },
   ];
 
   let lastError;
