@@ -259,8 +259,8 @@ async function generateVideo(audioBase64: string): Promise<string> {
     throw new Error('D-ID API key not configured');
   }
 
-  // Try a simpler, more reliable image URL
-  const lincolnImageUrl = 'https://i.imgur.com/8tBzQJq.jpg'; // Simple Lincoln portrait
+  // Use a reliable image URL
+  const lincolnImageUrl = 'https://i.imgur.com/8tBzQJq.jpg';
 
   // Log audio info
   console.log('[D-ID] Audio base64 length:', audioBase64.length);
@@ -269,7 +269,7 @@ async function generateVideo(audioBase64: string): Promise<string> {
     audioBase64.slice(0, 100)
   );
 
-  // Prepare payload
+  // Prepare payload according to D-ID docs
   const payload = {
     script: {
       type: 'audio',
@@ -277,10 +277,18 @@ async function generateVideo(audioBase64: string): Promise<string> {
       subtitles: false,
     },
     source_url: lincolnImageUrl,
+    // Add required fields from D-ID docs
+    presenter_id: null, // Use source_url instead
+    driver_id: null, // Not needed for audio
+    config: {
+      fluent: false, // Disable advanced features for free tier
+      pad_audio: 0.0,
+      stitch: true,
+    },
   };
 
   console.log(
-    '[D-ID] Payload (simplified):',
+    '[D-ID] Payload (updated):',
     JSON.stringify(
       {
         script: {
@@ -289,18 +297,24 @@ async function generateVideo(audioBase64: string): Promise<string> {
           subtitles: false,
         },
         source_url: lincolnImageUrl,
+        config: {
+          fluent: false,
+          pad_audio: 0.0,
+          stitch: true,
+        },
       },
       null,
       2
     )
   );
 
-  // Create the video
+  // Create the video with proper authentication
   const createResponse = await fetch('https://api.d-id.com/talks', {
     method: 'POST',
     headers: {
-      Authorization: `Basic ${Buffer.from(apiKey + ':').toString('base64')}`,
+      Authorization: `Bearer ${apiKey}`, // Use Bearer token instead of Basic
       'Content-Type': 'application/json',
+      Accept: 'application/json',
     },
     body: JSON.stringify(payload),
   });
@@ -320,6 +334,11 @@ async function generateVideo(audioBase64: string): Promise<string> {
       errorMessage += '- Image URL not accessible\n';
       errorMessage += '- Audio format not supported\n';
       errorMessage += '- Account needs verification\n';
+      errorMessage += '- Invalid API key format\n';
+    } else if (createResponse.status === 401) {
+      errorMessage += '\n\nAuthentication failed. Check your API key.';
+    } else if (createResponse.status === 400) {
+      errorMessage += '\n\nBad request. Check payload format.';
     }
 
     throw new Error(errorMessage);
@@ -337,7 +356,8 @@ async function generateVideo(audioBase64: string): Promise<string> {
 
     const statusResponse = await fetch(`https://api.d-id.com/talks/${talkId}`, {
       headers: {
-        Authorization: `Basic ${Buffer.from(apiKey + ':').toString('base64')}`,
+        Authorization: `Bearer ${apiKey}`, // Use Bearer token
+        Accept: 'application/json',
       },
     });
 
