@@ -161,9 +161,27 @@ async function generateAudio(text: string): Promise<string> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   const voiceId = process.env.ELEVENLABS_VOICE_ID;
 
+  console.log('[ElevenLabs] Starting audio generation...');
+  console.log('[ElevenLabs] Text to synthesize:', text);
+  console.log('[ElevenLabs] Voice ID:', voiceId);
+  console.log('[ElevenLabs] API Key present:', !!apiKey);
+
   if (!apiKey || !voiceId) {
     throw new Error('ElevenLabs API key or voice ID not configured');
   }
+
+  const payload = {
+    text,
+    model_id: 'eleven_monolingual_v1',
+    voice_settings: {
+      stability: 0.5,
+      similarity_boost: 0.75,
+      style: 0.0,
+      use_speaker_boost: true,
+    },
+  };
+
+  console.log('[ElevenLabs] Payload:', JSON.stringify(payload, null, 2));
 
   const response = await fetch(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
@@ -174,27 +192,30 @@ async function generateAudio(text: string): Promise<string> {
         'Content-Type': 'application/json',
         'xi-api-key': apiKey,
       },
-      body: JSON.stringify({
-        text,
-        model_id: 'eleven_monolingual_v1',
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.75,
-          style: 0.0,
-          use_speaker_boost: true,
-        },
-      }),
+      body: JSON.stringify(payload),
     }
   );
 
+  console.log('[ElevenLabs] Status:', response.status);
+  console.log(
+    '[ElevenLabs] Headers:',
+    Object.fromEntries(response.headers.entries())
+  );
+
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`ElevenLabs API error: ${error}`);
+    const errorText = await response.text();
+    console.log('[ElevenLabs] Error response:', errorText);
+    throw new Error(`ElevenLabs API error: ${errorText}`);
   }
 
   // Convert audio to base64 for D-ID
   const audioBuffer = await response.arrayBuffer();
   const base64Audio = Buffer.from(audioBuffer).toString('base64');
+
+  console.log(
+    '[ElevenLabs] Audio generated successfully, length:',
+    base64Audio.length
+  );
 
   return base64Audio;
 }
