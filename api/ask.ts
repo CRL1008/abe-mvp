@@ -278,6 +278,13 @@ async function generateVideo(audioBase64: string): Promise<string> {
     '[D-ID] Audio base64 (first 100 chars):',
     audioBase64.slice(0, 100)
   );
+  console.log('[D-ID] Audio base64 (last 100 chars):', audioBase64.slice(-100));
+  // Optionally, log the first 20 bytes as hex for debugging
+  const audioBuffer = Buffer.from(audioBase64, 'base64');
+  console.log(
+    '[D-ID] Audio buffer (first 20 bytes as hex):',
+    audioBuffer.slice(0, 20).toString('hex')
+  );
 
   // Prepare payload according to D-ID docs - minimal required fields
   const payload = {
@@ -374,6 +381,13 @@ async function generateVideo(audioBase64: string): Promise<string> {
     } else {
       lastError = new Error(`D-ID Basic Auth failed: ${createText}`);
       console.log('[D-ID] Basic Auth authentication failed.');
+      // Log the full error response for troubleshooting
+      try {
+        const errorJson = JSON.parse(createText);
+        console.log('[D-ID] Full error response object:', errorJson);
+      } catch (e) {
+        console.log('[D-ID] Error response is not valid JSON.');
+      }
     }
   } catch (error) {
     lastError = error instanceof Error ? error : new Error(String(error));
