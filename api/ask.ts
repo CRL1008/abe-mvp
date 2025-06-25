@@ -183,41 +183,74 @@ async function generateAudio(text: string): Promise<string> {
 
   console.log('[ElevenLabs] Payload:', JSON.stringify(payload, null, 2));
 
-  const response = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-    {
-      method: 'POST',
-      headers: {
-        Accept: 'audio/mpeg',
-        'Content-Type': 'application/json',
-        'xi-api-key': apiKey,
-      },
-      body: JSON.stringify(payload),
+  // Retry logic for rate limiting
+  const maxRetries = 3;
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[ElevenLabs] Attempt ${attempt}/${maxRetries}`);
+
+      const response = await fetch(
+        `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+        {
+          method: 'POST',
+          headers: {
+            Accept: 'audio/mpeg',
+            'Content-Type': 'application/json',
+            'xi-api-key': apiKey,
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      console.log('[ElevenLabs] Status:', response.status);
+      console.log(
+        '[ElevenLabs] Headers:',
+        Object.fromEntries(response.headers.entries())
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log('[ElevenLabs] Error response:', errorText);
+
+        // Check if it's a rate limit error
+        if (response.status === 429 || errorText.includes('system_busy')) {
+          lastError = new Error(`ElevenLabs rate limited: ${errorText}`);
+
+          if (attempt < maxRetries) {
+            const delay = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s, 8s
+            console.log(
+              `[ElevenLabs] Rate limited, waiting ${delay}ms before retry...`
+            );
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            continue;
+          }
+        }
+
+        throw new Error(`ElevenLabs API error: ${errorText}`);
+      }
+
+      // Success - convert audio to base64 for D-ID
+      const audioBuffer = await response.arrayBuffer();
+      const base64Audio = Buffer.from(audioBuffer).toString('base64');
+
+      console.log(
+        '[ElevenLabs] Audio generated successfully, length:',
+        base64Audio.length
+      );
+      return base64Audio;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.log(`[ElevenLabs] Attempt ${attempt} failed:`, lastError.message);
+
+      if (attempt === maxRetries) {
+        throw lastError;
+      }
     }
-  );
-
-  console.log('[ElevenLabs] Status:', response.status);
-  console.log(
-    '[ElevenLabs] Headers:',
-    Object.fromEntries(response.headers.entries())
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.log('[ElevenLabs] Error response:', errorText);
-    throw new Error(`ElevenLabs API error: ${errorText}`);
   }
 
-  // Convert audio to base64 for D-ID
-  const audioBuffer = await response.arrayBuffer();
-  const base64Audio = Buffer.from(audioBuffer).toString('base64');
-
-  console.log(
-    '[ElevenLabs] Audio generated successfully, length:',
-    base64Audio.length
-  );
-
-  return base64Audio;
+  throw lastError;
 }
 
 async function generateVideo(audioBase64: string): Promise<string> {
