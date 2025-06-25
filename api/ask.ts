@@ -259,6 +259,12 @@ async function generateVideo(audioBase64: string): Promise<string> {
     throw new Error('D-ID API key not configured');
   }
 
+  // Debug API key (show first/last few characters)
+  console.log('[D-ID] API Key format check:');
+  console.log('[D-ID] Key length:', apiKey.length);
+  console.log('[D-ID] Key starts with:', apiKey.substring(0, 10));
+  console.log('[D-ID] Key ends with:', apiKey.substring(apiKey.length - 10));
+
   // Use a reliable image URL
   const lincolnImageUrl = 'https://i.imgur.com/8tBzQJq.jpg';
 
@@ -308,80 +314,100 @@ async function generateVideo(audioBase64: string): Promise<string> {
     )
   );
 
-  // Create the video with proper authentication
-  const createResponse = await fetch('https://api.d-id.com/talks', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`, // Use Bearer token instead of Basic
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
+  // Try different authentication methods
+  const authMethods = [
+    { name: 'Bearer', header: `Bearer ${apiKey}` },
+    {
+      name: 'Basic',
+      header: `Basic ${Buffer.from(apiKey + ':').toString('base64')}`,
     },
-    body: JSON.stringify(payload),
-  });
+    { name: 'X-API-Key', header: apiKey },
+  ];
 
-  // Log status and response
-  console.log('[D-ID] Status:', createResponse.status);
-  const createText = await createResponse.text();
-  console.log('[D-ID] Response:', createText);
+  let lastError;
 
-  if (!createResponse.ok) {
-    // Try to provide more helpful error information
-    let errorMessage = `D-ID create API error: ${createText}`;
+  for (const authMethod of authMethods) {
+    try {
+      console.log(`[D-ID] Trying ${authMethod.name} authentication...`);
 
-    if (createResponse.status === 500) {
-      errorMessage += '\n\nPossible causes:\n';
-      errorMessage += '- Free tier limitations (try upgrading)\n';
-      errorMessage += '- Image URL not accessible\n';
-      errorMessage += '- Audio format not supported\n';
-      errorMessage += '- Account needs verification\n';
-      errorMessage += '- Invalid API key format\n';
-    } else if (createResponse.status === 401) {
-      errorMessage += '\n\nAuthentication failed. Check your API key.';
-    } else if (createResponse.status === 400) {
-      errorMessage += '\n\nBad request. Check payload format.';
+      const createResponse = await fetch('https://api.d-id.com/talks', {
+        method: 'POST',
+        headers: {
+          Authorization: authMethod.header,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      console.log(`[D-ID] ${authMethod.name} Status:`, createResponse.status);
+      const createText = await createResponse.text();
+      console.log(`[D-ID] ${authMethod.name} Response:`, createText);
+
+      if (createResponse.ok) {
+        console.log(`[D-ID] Success with ${authMethod.name} authentication!`);
+        const createData: DIDResponse = JSON.parse(createText);
+        const talkId = createData.id;
+
+        // Poll for completion
+        let attempts = 0;
+        const maxAttempts = 60; // 5 minutes max wait
+
+        while (attempts < maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait 5 seconds
+
+          const statusResponse = await fetch(
+            `https://api.d-id.com/talks/${talkId}`,
+            {
+              headers: {
+                Authorization: authMethod.header, // Use the same auth method
+                Accept: 'application/json',
+              },
+            }
+          );
+
+          const statusText = await statusResponse.text();
+          console.log(
+            `[D-ID] Poll attempt ${attempts + 1} status:`,
+            statusResponse.status,
+            statusText
+          );
+
+          if (!statusResponse.ok) {
+            throw new Error(`D-ID status API error: ${statusText}`);
+          }
+
+          const statusData: DIDResponse = JSON.parse(statusText);
+
+          if (statusData.status === 'done') {
+            return statusData.result.video_url;
+          } else if (statusData.status === 'error') {
+            throw new Error('D-ID video generation failed');
+          }
+
+          attempts++;
+        }
+
+        throw new Error('D-ID video generation timed out');
+      } else {
+        lastError = new Error(
+          `D-ID ${authMethod.name} auth failed: ${createText}`
+        );
+        console.log(
+          `[D-ID] ${authMethod.name} authentication failed, trying next method...`
+        );
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.log(
+        `[D-ID] ${authMethod.name} attempt failed:`,
+        lastError.message
+      );
     }
-
-    throw new Error(errorMessage);
   }
 
-  const createData: DIDResponse = JSON.parse(createText);
-  const talkId = createData.id;
-
-  // Poll for completion
-  let attempts = 0;
-  const maxAttempts = 60; // 5 minutes max wait
-
-  while (attempts < maxAttempts) {
-    await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait 5 seconds
-
-    const statusResponse = await fetch(`https://api.d-id.com/talks/${talkId}`, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`, // Use Bearer token
-        Accept: 'application/json',
-      },
-    });
-
-    const statusText = await statusResponse.text();
-    console.log(
-      `[D-ID] Poll attempt ${attempts + 1} status:`,
-      statusResponse.status,
-      statusText
-    );
-
-    if (!statusResponse.ok) {
-      throw new Error(`D-ID status API error: ${statusText}`);
-    }
-
-    const statusData: DIDResponse = JSON.parse(statusText);
-
-    if (statusData.status === 'done') {
-      return statusData.result.video_url;
-    } else if (statusData.status === 'error') {
-      throw new Error('D-ID video generation failed');
-    }
-
-    attempts++;
-  }
-
-  throw new Error('D-ID video generation timed out');
+  // If all auth methods failed
+  throw new Error(
+    `All D-ID authentication methods failed. Last error: ${lastError?.message}`
+  );
 }
