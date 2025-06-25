@@ -265,6 +265,10 @@ async function generateVideo(audioBase64: string): Promise<string> {
   console.log('[D-ID] Key starts with:', apiKey.substring(0, 10));
   console.log('[D-ID] Key ends with:', apiKey.substring(apiKey.length - 10));
 
+  // Prepare Basic Auth header
+  const basicAuth = Buffer.from(apiKey).toString('base64');
+  console.log('[D-ID] Basic Auth header:', `Basic ${basicAuth}`);
+
   // Use a reliable image URL
   const lincolnImageUrl = 'https://i.imgur.com/8tBzQJq.jpg';
 
@@ -301,95 +305,79 @@ async function generateVideo(audioBase64: string): Promise<string> {
     )
   );
 
-  // Use the API key as-is for authentication
-  const authMethods = [
-    { name: 'Bearer Token', header: `Bearer ${apiKey}` },
-    { name: 'X-API-Key', header: apiKey },
-    { name: 'Authorization Only', header: apiKey },
-  ];
-
   let lastError;
 
-  for (const authMethod of authMethods) {
-    try {
-      console.log(`[D-ID] Trying ${authMethod.name} authentication...`);
+  try {
+    console.log('[D-ID] Trying Basic authentication...');
 
-      const createResponse = await fetch('https://api.d-id.com/talks', {
-        method: 'POST',
-        headers: {
-          Authorization: authMethod.header,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          'User-Agent': 'Abe-Answers/1.0',
-        },
-        body: JSON.stringify(payload),
-      });
+    const createResponse = await fetch('https://api.d-id.com/talks', {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${basicAuth}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'User-Agent': 'Abe-Answers/1.0',
+      },
+      body: JSON.stringify(payload),
+    });
 
-      console.log(`[D-ID] ${authMethod.name} Status:`, createResponse.status);
-      const createText = await createResponse.text();
-      console.log(`[D-ID] ${authMethod.name} Response:`, createText);
+    console.log('[D-ID] Basic Auth Status:', createResponse.status);
+    const createText = await createResponse.text();
+    console.log('[D-ID] Basic Auth Response:', createText);
 
-      if (createResponse.ok) {
-        console.log(`[D-ID] Success with ${authMethod.name} authentication!`);
-        const createData: DIDResponse = JSON.parse(createText);
-        const talkId = createData.id;
+    if (createResponse.ok) {
+      console.log('[D-ID] Success with Basic authentication!');
+      const createData: DIDResponse = JSON.parse(createText);
+      const talkId = createData.id;
 
-        // Poll for completion
-        let attempts = 0;
-        const maxAttempts = 60; // 5 minutes max wait
+      // Poll for completion
+      let attempts = 0;
+      const maxAttempts = 60; // 5 minutes max wait
 
-        while (attempts < maxAttempts) {
-          await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait 5 seconds
+      while (attempts < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait 5 seconds
 
-          const statusResponse = await fetch(
-            `https://api.d-id.com/talks/${talkId}`,
-            {
-              headers: {
-                Authorization: authMethod.header, // Use the same auth method
-                Accept: 'application/json',
-                'User-Agent': 'Abe-Answers/1.0',
-              },
-            }
-          );
-
-          const statusText = await statusResponse.text();
-          console.log(
-            `[D-ID] Poll attempt ${attempts + 1} status:`,
-            statusResponse.status,
-            statusText
-          );
-
-          if (!statusResponse.ok) {
-            throw new Error(`D-ID status API error: ${statusText}`);
+        const statusResponse = await fetch(
+          `https://api.d-id.com/talks/${talkId}`,
+          {
+            headers: {
+              Authorization: `Basic ${basicAuth}`,
+              Accept: 'application/json',
+              'User-Agent': 'Abe-Answers/1.0',
+            },
           }
+        );
 
-          const statusData: DIDResponse = JSON.parse(statusText);
+        const statusText = await statusResponse.text();
+        console.log(
+          `[D-ID] Poll attempt ${attempts + 1} status:`,
+          statusResponse.status,
+          statusText
+        );
 
-          if (statusData.status === 'done') {
-            return statusData.result.video_url;
-          } else if (statusData.status === 'error') {
-            throw new Error('D-ID video generation failed');
-          }
-
-          attempts++;
+        if (!statusResponse.ok) {
+          throw new Error(`D-ID status API error: ${statusText}`);
         }
 
-        throw new Error('D-ID video generation timed out');
-      } else {
-        lastError = new Error(
-          `D-ID ${authMethod.name} auth failed: ${createText}`
-        );
-        console.log(
-          `[D-ID] ${authMethod.name} authentication failed, trying next method...`
-        );
+        const statusData: DIDResponse = JSON.parse(statusText);
+
+        if (statusData.status === 'done') {
+          return statusData.result.video_url;
+        } else if (statusData.status === 'error') {
+          throw new Error('D-ID video generation failed');
+        }
+
+        attempts++;
       }
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-      console.log(
-        `[D-ID] ${authMethod.name} attempt failed:`,
-        lastError.message
-      );
+
+      throw new Error('D-ID video generation timed out');
+    } else {
+      lastError = new Error(`D-ID Basic Auth failed: ${createText}`);
+      console.log('[D-ID] Basic Auth authentication failed.');
     }
+  } catch (error) {
+    lastError = error instanceof Error ? error : new Error(String(error));
+    console.log('[D-ID] Basic Auth attempt failed:', lastError.message);
   }
 
   // If all auth methods failed
