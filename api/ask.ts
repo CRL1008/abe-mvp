@@ -208,6 +208,35 @@ async function generateVideo(audioBase64: string): Promise<string> {
   const lincolnImageUrl =
     'https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Abraham_Lincoln_1863_Portrait_%283x4_cropped%29.jpg/1280px-Abraham_Lincoln_1863_Portrait_%283x4_cropped%29.jpg';
 
+  // Log audio info
+  console.log('[D-ID] Audio base64 length:', audioBase64.length);
+  console.log(
+    '[D-ID] Audio base64 (first 100 chars):',
+    audioBase64.slice(0, 100)
+  );
+
+  // Prepare payload
+  const payload = {
+    script: {
+      type: 'audio',
+      audio: `data:audio/mpeg;base64,${audioBase64}`,
+      subtitles: false,
+      provider: {
+        type: 'microsoft',
+        voice_id: 'en-US-JennyNeural',
+      },
+    },
+    config: {
+      fluent: true,
+      pad_audio: 0.0,
+      stitch: true,
+    },
+    source_url: lincolnImageUrl,
+  };
+
+  // Log payload
+  console.log('[D-ID] Payload:', JSON.stringify(payload, null, 2));
+
   // Create the video
   const createResponse = await fetch('https://api.d-id.com/talks', {
     method: 'POST',
@@ -215,31 +244,19 @@ async function generateVideo(audioBase64: string): Promise<string> {
       Authorization: `Basic ${Buffer.from(apiKey + ':').toString('base64')}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      script: {
-        type: 'audio',
-        audio: `data:audio/mpeg;base64,${audioBase64}`,
-        subtitles: false,
-        provider: {
-          type: 'microsoft',
-          voice_id: 'en-US-JennyNeural',
-        },
-      },
-      config: {
-        fluent: true,
-        pad_audio: 0.0,
-        stitch: true,
-      },
-      source_url: lincolnImageUrl,
-    }),
+    body: JSON.stringify(payload),
   });
 
+  // Log status and response
+  console.log('[D-ID] Status:', createResponse.status);
+  const createText = await createResponse.text();
+  console.log('[D-ID] Response:', createText);
+
   if (!createResponse.ok) {
-    const error = await createResponse.text();
-    throw new Error(`D-ID create API error: ${error}`);
+    throw new Error(`D-ID create API error: ${createText}`);
   }
 
-  const createData: DIDResponse = await createResponse.json();
+  const createData: DIDResponse = JSON.parse(createText);
   const talkId = createData.id;
 
   // Poll for completion
@@ -255,11 +272,18 @@ async function generateVideo(audioBase64: string): Promise<string> {
       },
     });
 
+    const statusText = await statusResponse.text();
+    console.log(
+      `[D-ID] Poll attempt ${attempts + 1} status:`,
+      statusResponse.status,
+      statusText
+    );
+
     if (!statusResponse.ok) {
-      throw new Error(`D-ID status API error: ${await statusResponse.text()}`);
+      throw new Error(`D-ID status API error: ${statusText}`);
     }
 
-    const statusData: DIDResponse = await statusResponse.json();
+    const statusData: DIDResponse = JSON.parse(statusText);
 
     if (statusData.status === 'done') {
       return statusData.result.video_url;
