@@ -170,8 +170,7 @@ async function generateVideoFromText(text: string): Promise<string> {
   console.log('[D-ID] Basic Auth header:', `Basic ${basicAuth}`);
 
   // Use a self-hosted image URL on Vercel
-  const lincolnImageUrl =
-    'https://m.media-amazon.com/images/I/71PoTgNZCoL._UF894,1000_QL80_.jpg';
+  const lincolnImageUrl = 'https://abe-mvp.vercel.app/lincoln.jpg';
 
   // Prepare payload for text-to-speech
   const payload = {
