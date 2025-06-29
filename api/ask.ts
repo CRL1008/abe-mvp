@@ -169,9 +169,9 @@ async function generateVideoFromText(text: string): Promise<string> {
   const basicAuth = Buffer.from(apiKey).toString('base64');
   console.log('[D-ID] Basic Auth header:', `Basic ${basicAuth}`);
 
-  // Use a reliable image URL
+  // Use a self-hosted image URL on Vercel
   const lincolnImageUrl =
-    'https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Abraham_Lincoln_1863_Portrait_%283x4_cropped%29.jpg/500px-Abraham_Lincoln_1863_Portrait_%283x4_cropped%29.jpg';
+    'https://' + (process.env.VERCEL_URL || 'localhost:3000') + '/lincoln.jpg';
 
   // Prepare payload for text-to-speech
   const payload = {

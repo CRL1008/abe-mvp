@@ -90,6 +90,14 @@ vercel
 
 3. Add environment variables in Vercel dashboard
 
+## Hosting the Lincoln Image
+
+To ensure D-ID can always access the Lincoln image, place it in the `public/` directory:
+
+1. Create a `public` folder in your project root if it doesn't exist.
+2. Add your image as `public/lincoln.jpg`.
+3. The image will be available at `https://<your-vercel-domain>/lincoln.jpg` after deployment.
+
 ## Usage
 
 1. **First Visit**: Enter the access password (stored locally)
