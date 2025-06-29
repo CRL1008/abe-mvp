@@ -171,7 +171,7 @@ async function generateVideoFromText(text: string): Promise<string> {
 
   // Use a reliable image URL
   const lincolnImageUrl =
-    'https://upload.wikimedia.org/wikipedia/commons/5/57/Abraham_Lincoln_1863_Portrait_%283x4_cropped%29.jpg';
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Abraham_Lincoln_1863_Portrait_%283x4_cropped%29.jpg/500px-Abraham_Lincoln_1863_Portrait_%283x4_cropped%29.jpg';
 
   // Prepare payload for text-to-speech
   const payload = {
