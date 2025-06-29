@@ -171,7 +171,7 @@ async function generateVideoFromText(text: string): Promise<string> {
 
   // Use a self-hosted image URL on Vercel
   const lincolnImageUrl =
-    'https://' + (process.env.VERCEL_URL || 'localhost:3000') + '/lincoln.jpg';
+    'https://m.media-amazon.com/images/I/71PoTgNZCoL._UF894,1000_QL80_.jpg';
 
   // Prepare payload for text-to-speech
   const payload = {
