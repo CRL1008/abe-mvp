@@ -51,13 +51,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('Generating Lincoln response...');
     const lincolnResponse = await generateLincolnResponse(transcription);
 
-    // Step 3: Generate audio using ElevenLabs
-    console.log('Generating audio...');
-    const audioUrl = await generateAudio(lincolnResponse);
-
-    // Step 4: Generate video using D-ID
+    // Step 3: Generate video using D-ID (text-to-speech)
     console.log('Generating video...');
-    const videoUrl = await generateVideo(audioUrl);
+    const videoUrl = await generateVideoFromText(lincolnResponse);
 
     // Return the results
     return res.status(200).json({
@@ -157,103 +153,7 @@ async function generateLincolnResponse(question: string): Promise<string> {
   return responseText;
 }
 
-async function generateAudio(text: string): Promise<string> {
-  const apiKey = process.env.ELEVENLABS_API_KEY;
-  const voiceId = process.env.ELEVENLABS_VOICE_ID;
-
-  console.log('[ElevenLabs] Starting audio generation...');
-  console.log('[ElevenLabs] Text to synthesize:', text);
-  console.log('[ElevenLabs] Voice ID:', voiceId);
-  console.log('[ElevenLabs] API Key present:', !!apiKey);
-
-  if (!apiKey || !voiceId) {
-    throw new Error('ElevenLabs API key or voice ID not configured');
-  }
-
-  const payload = {
-    text,
-    model_id: 'eleven_monolingual_v1',
-    voice_settings: {
-      stability: 0.5,
-      similarity_boost: 0.75,
-      style: 0.0,
-      use_speaker_boost: true,
-    },
-  };
-
-  console.log('[ElevenLabs] Payload:', JSON.stringify(payload, null, 2));
-
-  // Retry logic for rate limiting
-  const maxRetries = 3;
-  let lastError;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`[ElevenLabs] Attempt ${attempt}/${maxRetries}`);
-
-      const response = await fetch(
-        `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-        {
-          method: 'POST',
-          headers: {
-            Accept: 'audio/mpeg',
-            'Content-Type': 'application/json',
-            'xi-api-key': apiKey,
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      console.log('[ElevenLabs] Status:', response.status);
-      console.log(
-        '[ElevenLabs] Headers:',
-        Object.fromEntries(response.headers.entries())
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.log('[ElevenLabs] Error response:', errorText);
-
-        // Check if it's a rate limit error
-        if (response.status === 429 || errorText.includes('system_busy')) {
-          lastError = new Error(`ElevenLabs rate limited: ${errorText}`);
-
-          if (attempt < maxRetries) {
-            const delay = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s, 8s
-            console.log(
-              `[ElevenLabs] Rate limited, waiting ${delay}ms before retry...`
-            );
-            await new Promise((resolve) => setTimeout(resolve, delay));
-            continue;
-          }
-        }
-
-        throw new Error(`ElevenLabs API error: ${errorText}`);
-      }
-
-      // Success - convert audio to base64 for D-ID
-      const audioBuffer = await response.arrayBuffer();
-      const base64Audio = Buffer.from(audioBuffer).toString('base64');
-
-      console.log(
-        '[ElevenLabs] Audio generated successfully, length:',
-        base64Audio.length
-      );
-      return base64Audio;
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-      console.log(`[ElevenLabs] Attempt ${attempt} failed:`, lastError.message);
-
-      if (attempt === maxRetries) {
-        throw lastError;
-      }
-    }
-  }
-
-  throw lastError;
-}
-
-async function generateVideo(audioBase64: string): Promise<string> {
+async function generateVideoFromText(text: string): Promise<string> {
   const apiKey = process.env.DID_API_KEY;
   if (!apiKey) {
     throw new Error('D-ID API key not configured');
@@ -270,52 +170,31 @@ async function generateVideo(audioBase64: string): Promise<string> {
   console.log('[D-ID] Basic Auth header:', `Basic ${basicAuth}`);
 
   // Use a reliable image URL
-  const lincolnImageUrl = 'https://i.imgur.com/8tBzQJq.jpg';
+  const lincolnImageUrl =
+    'https://upload.wikimedia.org/wikipedia/commons/5/57/Abraham_Lincoln_1863_Portrait_%283x4_cropped%29.jpg';
 
-  // Log audio info
-  console.log('[D-ID] Audio base64 length:', audioBase64.length);
-  console.log(
-    '[D-ID] Audio base64 (first 100 chars):',
-    audioBase64.slice(0, 100)
-  );
-  console.log('[D-ID] Audio base64 (last 100 chars):', audioBase64.slice(-100));
-  // Optionally, log the first 20 bytes as hex for debugging
-  const audioBuffer = Buffer.from(audioBase64, 'base64');
-  console.log(
-    '[D-ID] Audio buffer (first 20 bytes as hex):',
-    audioBuffer.slice(0, 20).toString('hex')
-  );
-
-  // Prepare payload according to D-ID docs - minimal required fields
+  // Prepare payload for text-to-speech
   const payload = {
     script: {
-      type: 'audio',
-      audio: `data:audio/mpeg;base64,${audioBase64}`,
-      subtitles: false,
+      type: 'text',
+      input: text,
+      provider: {
+        type: 'microsoft', // or 'amazon' or 'elevenlabs' if supported by your plan
+        voice_id: 'en-US-GuyNeural', // a clear, neutral male US English voice
+      },
     },
     source_url: lincolnImageUrl,
   };
 
   console.log(
-    '[D-ID] Payload (minimal per docs):',
-    JSON.stringify(
-      {
-        script: {
-          type: 'audio',
-          audio: `data:audio/mpeg;base64,${audioBase64.slice(0, 100)}...`,
-          subtitles: false,
-        },
-        source_url: lincolnImageUrl,
-      },
-      null,
-      2
-    )
+    '[D-ID] Payload (text-to-speech):',
+    JSON.stringify(payload, null, 2)
   );
 
   let lastError;
 
   try {
-    console.log('[D-ID] Trying Basic authentication...');
+    console.log('[D-ID] Trying Basic authentication (text-to-speech)...');
 
     const createResponse = await fetch('https://api.d-id.com/talks', {
       method: 'POST',
