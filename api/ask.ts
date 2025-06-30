@@ -189,13 +189,8 @@ async function generateVideoFromText(text: string): Promise<string> {
       type: 'text',
       input: text,
       provider: {
-        type: 'microsoft',
-        voice_id: 'en-US-DavisNeural', // deeper, more authoritative voice for Lincoln
-        voice_config: {
-          style: 'calm', // more measured, dignified tone
-          rate: 0.8, // slightly slower for more gravitas
-          pitch: -10, // slightly lower pitch for authority
-        },
+        type: 'amazon',
+        voice_id: 'Matthew', // deep, authoritative male voice perfect for Lincoln
       },
     },
     source_url: lincolnImageUrl,
@@ -209,7 +204,7 @@ async function generateVideoFromText(text: string): Promise<string> {
   let lastError;
 
   try {
-    console.log('[D-ID] Trying Microsoft TTS with improved voice settings...');
+    console.log('[D-ID] Trying Amazon Polly TTS...');
 
     const createResponse = await fetch('https://api.d-id.com/talks', {
       method: 'POST',
@@ -222,12 +217,12 @@ async function generateVideoFromText(text: string): Promise<string> {
       body: JSON.stringify(payload),
     });
 
-    console.log('[D-ID] Microsoft TTS Status:', createResponse.status);
+    console.log('[D-ID] Amazon Polly Status:', createResponse.status);
     const createText = await createResponse.text();
-    console.log('[D-ID] Microsoft TTS Response:', createText);
+    console.log('[D-ID] Amazon Polly Response:', createText);
 
     if (createResponse.ok) {
-      console.log('[D-ID] Success with Microsoft TTS!');
+      console.log('[D-ID] Success with Amazon Polly!');
       const createData: DIDResponse = JSON.parse(createText);
       const talkId = createData.id;
 
@@ -251,7 +246,7 @@ async function generateVideoFromText(text: string): Promise<string> {
 
         const statusText = await statusResponse.text();
         console.log(
-          `[D-ID] Microsoft TTS Poll attempt ${attempts + 1} status:`,
+          `[D-ID] Amazon Polly Poll attempt ${attempts + 1} status:`,
           statusResponse.status,
           statusText
         );
@@ -278,8 +273,8 @@ async function generateVideoFromText(text: string): Promise<string> {
 
       throw new Error('D-ID video generation timed out');
     } else {
-      lastError = new Error(`Microsoft TTS failed: ${createText}`);
-      console.log('[D-ID] Microsoft TTS authentication failed.');
+      lastError = new Error(`Amazon Polly failed: ${createText}`);
+      console.log('[D-ID] Amazon Polly authentication failed.');
       // Log the full error response for troubleshooting
       try {
         const errorJson = JSON.parse(createText);
@@ -290,7 +285,7 @@ async function generateVideoFromText(text: string): Promise<string> {
     }
   } catch (error) {
     lastError = error instanceof Error ? error : new Error(String(error));
-    console.log('[D-ID] Microsoft TTS attempt failed:', lastError.message);
+    console.log('[D-ID] Amazon Polly attempt failed:', lastError.message);
   }
 
   // If all auth methods failed
