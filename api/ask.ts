@@ -114,7 +114,17 @@ async function generateLincolnResponse(question: string): Promise<string> {
     throw new Error('OpenAI API key not configured');
   }
 
-  const systemPrompt = `You are Abraham Lincoln in 1865, speaking with wisdom, dignity, and the perspective of a leader during the Civil War era. Respond to questions as Lincoln would have, using his characteristic speaking style, vocabulary, and mannerisms. Keep your response to exactly 10 words or fewer. Be authentic to Lincoln's voice and historical context.`;
+  const systemPrompt = `You are Abraham Lincoln in 1865, speaking with wisdom, dignity, and the perspective of a leader during the Civil War era. 
+
+IMPORTANT: Your response will be converted to speech, so write it to sound natural when spoken aloud. Use:
+- Natural pauses and rhythm
+- Clear, measured pacing
+- Emphasis on key words like "freedom," "union," "people," "nation," "liberty," "justice," "truth," and "honor"
+- Lincoln's characteristic speaking style with dignity and gravitas
+- Short, impactful sentences that work well for speech synthesis
+- Avoid complex sentence structures that sound robotic when spoken
+
+Keep your response to 15-25 words maximum. Be authentic to Lincoln's voice and historical context. Write as if you're speaking directly to someone, not writing for text.`;
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -179,12 +189,24 @@ async function generateVideoFromText(text: string): Promise<string> {
       type: 'text',
       input: text,
       provider: {
-        type: 'microsoft', // or 'amazon' or 'elevenlabs' if supported by your plan
-        voice_id: 'en-US-GuyNeural', // a clear, neutral male US English voice
+        type: 'microsoft',
+        voice_id: 'en-US-DavisNeural', // deeper, more authoritative voice for Lincoln
+        voice_config: {
+          style: 'calm', // more measured, dignified tone
+          rate: 0.8, // slightly slower for more gravitas
+          pitch: -10, // slightly lower pitch for authority
+        },
       },
     },
     source_url: lincolnImageUrl,
   };
+
+  // Alternative Microsoft voices to try if the first one doesn't work well
+  const alternativeVoices = [
+    'en-US-JennyNeural', // clear, professional female voice
+    'en-US-GuyNeural', // clear, professional male voice (original)
+    'en-US-AriaNeural', // warm, expressive female voice
+  ];
 
   console.log(
     '[D-ID] Payload (text-to-speech):',
@@ -194,7 +216,7 @@ async function generateVideoFromText(text: string): Promise<string> {
   let lastError;
 
   try {
-    console.log('[D-ID] Trying Basic authentication (text-to-speech)...');
+    console.log('[D-ID] Trying Microsoft TTS with improved voice settings...');
 
     const createResponse = await fetch('https://api.d-id.com/talks', {
       method: 'POST',
@@ -207,12 +229,12 @@ async function generateVideoFromText(text: string): Promise<string> {
       body: JSON.stringify(payload),
     });
 
-    console.log('[D-ID] Basic Auth Status:', createResponse.status);
+    console.log('[D-ID] Microsoft TTS Status:', createResponse.status);
     const createText = await createResponse.text();
-    console.log('[D-ID] Basic Auth Response:', createText);
+    console.log('[D-ID] Microsoft TTS Response:', createText);
 
     if (createResponse.ok) {
-      console.log('[D-ID] Success with Basic authentication!');
+      console.log('[D-ID] Success with Microsoft TTS!');
       const createData: DIDResponse = JSON.parse(createText);
       const talkId = createData.id;
 
@@ -236,7 +258,7 @@ async function generateVideoFromText(text: string): Promise<string> {
 
         const statusText = await statusResponse.text();
         console.log(
-          `[D-ID] Poll attempt ${attempts + 1} status:`,
+          `[D-ID] Microsoft TTS Poll attempt ${attempts + 1} status:`,
           statusResponse.status,
           statusText
         );
@@ -263,8 +285,8 @@ async function generateVideoFromText(text: string): Promise<string> {
 
       throw new Error('D-ID video generation timed out');
     } else {
-      lastError = new Error(`D-ID Basic Auth failed: ${createText}`);
-      console.log('[D-ID] Basic Auth authentication failed.');
+      lastError = new Error(`Microsoft TTS failed: ${createText}`);
+      console.log('[D-ID] Microsoft TTS authentication failed.');
       // Log the full error response for troubleshooting
       try {
         const errorJson = JSON.parse(createText);
@@ -275,7 +297,7 @@ async function generateVideoFromText(text: string): Promise<string> {
     }
   } catch (error) {
     lastError = error instanceof Error ? error : new Error(String(error));
-    console.log('[D-ID] Basic Auth attempt failed:', lastError.message);
+    console.log('[D-ID] Microsoft TTS attempt failed:', lastError.message);
   }
 
   // If all auth methods failed
