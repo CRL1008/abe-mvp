@@ -19,7 +19,8 @@ interface GptResponse {
 interface DIDResponse {
   id: string;
   status: string;
-  result: {
+  result_url?: string;
+  result?: {
     video_url: string;
   };
 }
@@ -247,7 +248,12 @@ async function generateVideoFromText(text: string): Promise<string> {
         const statusData: DIDResponse = JSON.parse(statusText);
 
         if (statusData.status === 'done') {
-          return statusData.result.video_url;
+          const videoUrl =
+            statusData.result_url || statusData.result?.video_url;
+          if (!videoUrl) {
+            throw new Error('D-ID video URL not found in response');
+          }
+          return videoUrl;
         } else if (statusData.status === 'error') {
           throw new Error('D-ID video generation failed');
         }
