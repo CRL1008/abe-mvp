@@ -201,13 +201,6 @@ async function generateVideoFromText(text: string): Promise<string> {
     source_url: lincolnImageUrl,
   };
 
-  // Alternative Microsoft voices to try if the first one doesn't work well
-  const alternativeVoices = [
-    'en-US-JennyNeural', // clear, professional female voice
-    'en-US-GuyNeural', // clear, professional male voice (original)
-    'en-US-AriaNeural', // warm, expressive female voice
-  ];
-
   console.log(
     '[D-ID] Payload (text-to-speech):',
     JSON.stringify(payload, null, 2)
